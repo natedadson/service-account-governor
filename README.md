@@ -16,82 +16,45 @@
 
 ---
 
-## Research Focus
-
-This project explores three core problems in cloud security engineering:
-
-| Problem | Approach | Outcome |
-|---------|----------|---------|
-| **Service account discovery** | IAM API enumeration + trust policy analysis | Complete inventory of all robot identities |
-| **Privilege risk scoring** | Policy document analysis with weighted risk model | 0-100 score based on permissions |
-| **Activity anomaly detection** | Last-used tracking + behavioral baselines | Identify abandoned/compromised accounts |
-
----
-
 ## Architecture
-┌─────────────────────────────────────────────────────────────┐
-│ AWS Account │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│ │ IAM Roles│ │ Policies │ │ CloudTrail│ │
-│ └────┬─────┘ └────┬─────┘ └─────┬────┘ │
-└───────┼────────────┼──────────────┼────────────────────────┘
-│ │ │
-▼ ▼ ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Service Account Governor │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Layer 1: Discovery │ │
-│ │ - List all IAM roles │ │
-│ │ - Filter by service principal (trust policy) │ │
-│ │ - Classify by service type (Lambda, EC2, ECS, etc.) │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Layer 2: Privilege Analysis │ │
-│ │ - Extract attached/inline policies │ │
-│ │ - Parse actions and resources │ │
-│ │ - Identify wildcards and high-privilege actions │ │
-│ │ - Calculate privilege score (0-100) │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Layer 3: Activity Analysis │ │
-│ │ - Check RoleLastUsed │ │
-│ │ - Calculate days since last use │ │
-│ │ - Generate abandonment risk score │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ ▼ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Layer 4: Combined Risk Scoring │ │
-│ │ - Weighted formula (privilege 50% + activity 35%) │ │
-│ │ - Prioritized ranking │ │
-│ │ - Actionable recommendations │ │
-│ └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-│
-▼
-┌─────────────────────────────────────────────────────────────┐
-│ Outputs │
-│ - CSV report with all findings │
-│ - Console summary with top risks │
-│ - Remediation recommendations │
-└─────────────────────────────────────────────────────────────┘
 
-text
+```mermaid
+flowchart TD
+    subgraph AWS["AWS Account"]
+        IAM[("IAM Roles")]
+        Policies[("IAM Policies")]
+        CloudTrail[("CloudTrail Logs")]
+    end
 
----
+    subgraph Governor["Service Account Governor"]
+        direction TB
+        L1["Layer 1: Discovery\n- List IAM roles\n- Filter service principals\n- Classify by type"]
+        L2["Layer 2: Privilege Analysis\n- Extract policies\n- Parse actions/resources\n- Calculate privilege score (0-100)"]
+        L3["Layer 3: Activity Analysis\n- Check RoleLastUsed\n- Calculate days unused\n- Generate abandonment score"]
+        L4["Layer 4: Combined Scoring\n- Weighted formula\n- Prioritized ranking\n- Actionable recommendations"]
+        
+        L1 --> L2 --> L3 --> L4
+    end
 
-## Prerequisites
+    subgraph Outputs["Outputs"]
+        Console["Console Summary\n- Top risks\n- Recommendations"]
+        CSV["CSV Export\n- Full results\n- Risk scores"]
+    end
 
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| Python | 3.9+ | [Download](https://www.python.org/downloads/) |
-| AWS Account | Free tier | Personal sandbox only |
-| AWS CLI | 2.x+ | [Install guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) |
-| Git | Latest | [Download](https://git-scm.com/downloads) |
+    IAM --> L1
+    Policies --> L2
+    CloudTrail --> L3
+    L4 --> Console
+    L4 --> CSV
+Prerequisites
+Requirement	Version	Notes
+Python	3.9+	Download
+AWS Account	Free tier	Personal sandbox only
+AWS CLI	2.x+	Install guide
+Git	Latest	Download
+AWS Permissions Required (read-only):
 
-**AWS Permissions Required (read-only):**
-```json
+json
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -113,7 +76,7 @@ text
 Installation
 bash
 # Clone the repository
-git clone https://github.com/nathanieldadson/service-account-governor.git
+git clone https://github.com/natedadson/service-account-governor.git
 cd service-account-governor
 
 # Create virtual environment
@@ -123,52 +86,47 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure AWS credentials (if not already done)
+# Configure AWS credentials
 aws configure --profile service-account-governor
 Usage
 Quick Start
 bash
-# Run complete analysis
 python src/combined_scorer.py
 Expected Output
 text
-🚀 Starting comprehensive service account risk analysis
-============================================================
+======================================================================
+Service Account Governor - Complete Risk Analysis
+======================================================================
 
 📋 Step 1: Discovering service accounts...
-📊 Found 12 total IAM roles
-🔍 Found service account: LambdaBasicExecutionRole → lambda.amazonaws.com
+📊 Found 2 total IAM roles
+  ✓ AWSServiceRoleForSupport → support.amazonaws.com
+  ✓ AWSServiceRoleForTrustedAdvisor → trustedadvisor.amazonaws.com
 
 📊 Step 2: Scoring service accounts...
 
-============================================================
+======================================================================
 📈 RISK ANALYSIS SUMMARY
-============================================================
+======================================================================
 
-Risk Distribution:
-  CRITICAL: 0 roles
-  HIGH: 0 roles
-  MEDIUM: 1 roles
-  LOW: 2 roles
+🔴 TOP RISKIEST SERVICE ACCOUNTS:
 
-🔴 TOP 5 RISKIEST SERVICE ACCOUNTS:
-
-  1. LambdaBasicExecutionRole - Score: 15.0/100 (LOW)
-     Service: lambda.amazonaws.com
-     Privilege: 15 | Activity: 0
-     Recommendation: Low risk - continue monitoring
+  1. AWSServiceRoleForTrustedAdvisor
+     Final Score: 35.5/100 (MEDIUM)
+     Privilege: 1/100 | Activity: 100/100
+     Recommendation: Review immediately - may be unnecessary
 
 💾 Results exported to risk_analysis_results.csv
 Module-by-Module Execution
 bash
-# Just discovery (list all service accounts)
+# Just discovery
 python -c "from discovery.find_service_roles import ServiceRoleDiscovery; d = ServiceRoleDiscovery(); print(d.discover_all_service_accounts())"
 
-# Just privilege scoring for a specific role
-python -c "from risk_scoring.privilege_score import PrivilegeScorer; p = PrivilegeScorer(); print(p.calculate_privilege_score('LambdaBasicExecutionRole'))"
+# Just privilege scoring
+python -c "from risk_scoring.privilege_score import PrivilegeScorer; p = PrivilegeScorer(); print(p.calculate_privilege_score('AWSServiceRoleForSupport'))"
 
-# Just activity scoring for a specific role
-python -c "from risk_scoring.activity_score import ActivityScorer; a = ActivityScorer(); print(a.calculate_activity_score('LambdaBasicExecutionRole'))"
+# Just activity scoring
+python -c "from risk_scoring.activity_score import ActivityScorer; a = ActivityScorer(); print(a.calculate_activity_score('AWSServiceRoleForSupport'))"
 Project Structure
 text
 service-account-governor/
@@ -187,9 +145,9 @@ service-account-governor/
 │   │
 │   └── combined_scorer.py           # Master orchestrator
 │
-├── tests/                       # Unit tests (coming in Phase 2)
+├── tests/                       # Unit tests
 ├── outputs/                     # Generated reports
-└── docs/                        # Documentation (coming in Phase 3)
+└── docs/                        # Documentation
 Risk Scoring Methodology
 Privilege Score (0-100) - 50% Weight
 Factor	Weight	Description
@@ -218,7 +176,7 @@ Phase 1: Discovery	✅ Complete	Service account inventory
 Phase 2: Privilege Scoring	✅ Complete	Privilege risk scores
 Phase 3: Activity Scoring	✅ Complete	Abandonment detection
 Phase 4: Combined Scorer	✅ Complete	Unified risk ranking
-Phase 5: Remediation Automation	🔄 In Progress	Jira/ServiceNow integration
+Phase 5: Remediation Automation	📅 Planned	Jira/ServiceNow integration
 Phase 6: ML Safe-to-Delete Model	📅 Planned	Predictive deletion safety
 Phase 7: Attack Path Integration	📅 Planned	Toxic combination detection
 Research Publications
@@ -228,29 +186,15 @@ This code supports the following research papers (in progress):
 
 "Service Account Abandonment: Measuring the Machine Identity Attack Surface in Enterprise AWS" (Q4 2026)
 
-Contributing
-This is an independent research project. Not open for external contributions at this time.
-
 License
 MIT License - See LICENSE file for details.
 
-text
-MIT License
-
-Copyright (c) 2026 Nathaniel Dadson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, subject to the following conditions:
-...
 Disclaimer
 This software is for research and educational purposes only.
 
 Run in a personal AWS sandbox, never in production
 
-The author is not responsible for any unintended modifications to AWS resources
+The author is not responsible for any unintended modifications
 
 This tool performs read-only operations by design
 
@@ -263,10 +207,9 @@ Independent Security Researcher
 
 Focus: AI for Cloud Security, CIEM, Cloud Detection & Response
 
-GitHub: github.com/nathanieldadson
+GitHub: github.com/natedadson
 
 This research is conducted independently and does not represent the views of any employer.
 
 Last Updated
 June 2026
-
