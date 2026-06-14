@@ -1,0 +1,31 @@
+name: Test Service Account Governor
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    - name: Run syntax check
+      run: |
+        python -m py_compile src/discovery/find_service_roles.py
+        python -m py_compile src/risk_scoring/privilege_score.py
+        python -m py_compile src/risk_scoring/activity_score.py
+        python -m py_compile src/combined_scorer.py
+    - name: Run import tests
+      run: |
+        python -c "from discovery.find_service_roles import ServiceRoleDiscovery; print('Discovery OK')"
+        python -c "from risk_scoring.privilege_score import PrivilegeScorer; print('Privilege OK')"
+        python -c "from risk_scoring.activity_score import ActivityScorer; print('Activity OK')"
